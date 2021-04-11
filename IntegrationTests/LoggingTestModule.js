@@ -1,31 +1,29 @@
 /**
- * Copyright (c) 2015-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
- * @providesModule LoggingTestModule
+ * @format
  */
+
 'use strict';
 
-var BatchedBridge = require('BatchedBridge');
+const BatchedBridge = require('react-native/Libraries/BatchedBridge/BatchedBridge');
 
-var warning = require('fbjs/lib/warning');
-var invariant = require('fbjs/lib/invariant');
+const invariant = require('invariant');
 
-var LoggingTestModule = {
+const LoggingTestModule = {
   logToConsole: function(str) {
     console.log(str);
   },
-  logToConsoleAfterWait: function(str,timeout_ms) {
+  logToConsoleAfterWait: function(str, timeout_ms) {
     setTimeout(function() {
       console.log(str);
     }, timeout_ms);
   },
   warning: function(str) {
-    warning(false, str);
+    console.warn(str);
   },
   invariant: function(str) {
     invariant(false, str);
@@ -35,12 +33,9 @@ var LoggingTestModule = {
   },
   throwError: function(str) {
     throw new Error(str);
-  }
+  },
 };
 
-BatchedBridge.registerCallableModule(
-  'LoggingTestModule',
-  LoggingTestModule
-);
+BatchedBridge.registerCallableModule('LoggingTestModule', LoggingTestModule);
 
 module.exports = LoggingTestModule;

@@ -1,157 +1,160 @@
 /**
- * Copyright (c) 2015-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
- * @providesModule AppState
- * @flow
+ * @flow strict-local
+ * @format
  */
-'use strict';
 
-const MissingNativeEventEmitterShim = require('MissingNativeEventEmitterShim');
-const NativeEventEmitter = require('NativeEventEmitter');
-const NativeModules = require('NativeModules');
-const RCTAppState = NativeModules.AppState;
+import {type EventSubscription} from '../vendor/emitter/EventEmitter';
+import NativeEventEmitter from '../EventEmitter/NativeEventEmitter';
+import logError from '../Utilities/logError';
+import NativeAppState from './NativeAppState';
 
-const logError = require('logError');
-const invariant = require('fbjs/lib/invariant');
+export type AppStateValues = 'inactive' | 'background' | 'active';
+
+type AppStateEventDefinitions = {
+  change: [AppStateValues],
+  memoryWarning: [],
+  blur: [],
+  focus: [],
+};
+
+type NativeAppStateEventDefinitions = {
+  appStateDidChange: [{app_state: AppStateValues}],
+  appStateFocusChange: [boolean],
+  memoryWarning: [],
+};
 
 /**
  * `AppState` can tell you if the app is in the foreground or background,
  * and notify you when the state changes.
  *
- * See http://facebook.github.io/react-native/docs/appstate.html
+ * See https://reactnative.dev/docs/appstate.html
  */
-class AppState extends NativeEventEmitter {
+class AppState {
+  currentState: ?string = null;
+  isAvailable: boolean;
 
-  _eventHandlers: Object;
-  currentState: ?string;
-  isAvailable: boolean = true;
+  _emitter: ?NativeEventEmitter<NativeAppStateEventDefinitions>;
 
   constructor() {
-    super(RCTAppState);
+    if (NativeAppState == null) {
+      this.isAvailable = false;
+    } else {
+      this.isAvailable = true;
 
-    this.isAvailable = true;
-    this._eventHandlers = {
-      change: new Map(),
-      memoryWarning: new Map(),
-    };
+      const emitter: NativeEventEmitter<NativeAppStateEventDefinitions> = new NativeEventEmitter(
+        NativeAppState,
+      );
+      this._emitter = emitter;
 
-    // TODO: Remove the 'active' fallback after `initialAppState` is exported by
-    // the Android implementation.
-    this.currentState = RCTAppState.initialAppState || 'active';
+      this.currentState = NativeAppState.getConstants().initialAppState;
 
-    let eventUpdated = false;
+      let eventUpdated = false;
 
-    // TODO: this is a terrible solution - in order to ensure `currentState`
-    // prop is up to date, we have to register an observer that updates it 
-    // whenever the state changes, even if nobody cares. We should just 
-    // deprecate the `currentState` property and get rid of this.
-    this.addListener(
-      'appStateDidChange',
-      (appStateData) => {
+      // TODO: this is a terrible solution - in order to ensure `currentState`
+      // prop is up to date, we have to register an observer that updates it
+      // whenever the state changes, even if nobody cares. We should just
+      // deprecate the `currentState` property and get rid of this.
+      emitter.addListener('appStateDidChange', appStateData => {
         eventUpdated = true;
         this.currentState = appStateData.app_state;
-      }
-    );
+      });
 
-    // TODO: see above - this request just populates the value of `currentState`
-    // when the module is first initialized. Would be better to get rid of the
-    // prop and expose `getCurrentAppState` method directly.
-    RCTAppState.getCurrentAppState(
-      (appStateData) => {
-        if (!eventUpdated) {
+      // TODO: see above - this request just populates the value of `currentState`
+      // when the module is first initialized. Would be better to get rid of the
+      // prop and expose `getCurrentAppState` method directly.
+      // $FlowExpectedError[incompatible-call]
+      NativeAppState.getCurrentAppState(appStateData => {
+        // It's possible that the state will have changed here & listeners need to be notified
+        if (!eventUpdated && this.currentState !== appStateData.app_state) {
           this.currentState = appStateData.app_state;
+          emitter.emit('appStateDidChange', appStateData);
         }
-      },
-      logError
-    );
+      }, logError);
+    }
   }
 
   // TODO: now that AppState is a subclass of NativeEventEmitter, we could
-  // deprecate `addEventListener` and `removeEventListener` and just use 
-  // addListener` and `listener.remove()` directly. That will be a breaking 
+  // deprecate `addEventListener` and `removeEventListener` and just use
+  // addListener` and `listener.remove()` directly. That will be a breaking
   // change though, as both the method and event names are different
   // (addListener events are currently required to be globally unique).
-   /**
+  /**
    * Add a handler to AppState changes by listening to the `change` event type
    * and providing the handler.
-   * 
-   * See http://facebook.github.io/react-native/docs/appstate.html#addeventlistener
+   *
+   * See https://reactnative.dev/docs/appstate.html#addeventlistener
    */
-  addEventListener(
-    type: string,
-    handler: Function
-  ) {
-    invariant(
-      ['change', 'memoryWarning'].indexOf(type) !== -1,
-      'Trying to subscribe to unknown event: "%s"', type
-    );
-    if (type === 'change') {
-      this._eventHandlers[type].set(handler, this.addListener(
-        'appStateDidChange',
-        (appStateData) => {
-          handler(appStateData.app_state);
-        }
-      ));
-    } else if (type === 'memoryWarning') {
-      this._eventHandlers[type].set(handler, this.addListener(
-        'memoryWarning',
-        handler
-      ));
+  addEventListener<K: $Keys<AppStateEventDefinitions>>(
+    type: K,
+    handler: (...$ElementType<AppStateEventDefinitions, K>) => void,
+  ): EventSubscription {
+    const emitter = this._emitter;
+    if (emitter == null) {
+      throw new Error('Cannot use AppState when `isAvailable` is false.');
     }
+    switch (type) {
+      case 'change':
+        // $FlowIssue[invalid-tuple-arity] Flow cannot refine handler based on the event type
+        const changeHandler: AppStateValues => void = handler;
+        return emitter.addListener('appStateDidChange', appStateData => {
+          changeHandler(appStateData.app_state);
+        });
+      case 'memoryWarning':
+        // $FlowIssue[invalid-tuple-arity] Flow cannot refine handler based on the event type
+        const memoryWarningHandler: () => void = handler;
+        return emitter.addListener('memoryWarning', memoryWarningHandler);
+      case 'blur':
+      case 'focus':
+        // $FlowIssue[invalid-tuple-arity] Flow cannot refine handler based on the event type
+        const focusOrBlurHandler: () => void = handler;
+        return emitter.addListener('appStateFocusChange', hasFocus => {
+          if (type === 'blur' && !hasFocus) {
+            focusOrBlurHandler();
+          }
+          if (type === 'focus' && hasFocus) {
+            focusOrBlurHandler();
+          }
+        });
+    }
+    throw new Error('Trying to subscribe to unknown event: ' + type);
   }
 
   /**
-   * Remove a handler by passing the `change` event type and the handler.
-   * 
-   * See http://facebook.github.io/react-native/docs/appstate.html#removeeventlistener
+   * @deprecated Use `remove` on the EventSubscription from `addEventListener`.
    */
-  removeEventListener(
-    type: string,
-    handler: Function
-  ) {
-    invariant(
-      ['change', 'memoryWarning'].indexOf(type) !== -1,
-      'Trying to remove listener for unknown event: "%s"', type
-    );
-    if (!this._eventHandlers[type].has(handler)) {
-      return;
+  removeEventListener<K: $Keys<AppStateEventDefinitions>>(
+    type: K,
+    listener: (...$ElementType<AppStateEventDefinitions, K>) => mixed,
+  ): void {
+    const emitter = this._emitter;
+    if (emitter == null) {
+      throw new Error('Cannot use AppState when `isAvailable` is false.');
     }
-    this._eventHandlers[type].get(handler).remove();
-    this._eventHandlers[type].delete(handler);
+    // NOTE: This will report a deprecation notice via `console.error`.
+    switch (type) {
+      case 'change':
+        // $FlowIssue[invalid-tuple-arity] Flow cannot refine handler based on the event type
+        // $FlowIssue[incompatible-call]
+        emitter.removeListener('appStateDidChange', listener);
+        return;
+      case 'memoryWarning':
+        // $FlowIssue[invalid-tuple-arity] Flow cannot refine handler based on the event type
+        emitter.removeListener('memoryWarning', listener);
+        return;
+      case 'blur':
+      case 'focus':
+        // $FlowIssue[invalid-tuple-arity] Flow cannot refine handler based on the event type
+        // $FlowIssue[incompatible-call]
+        emitter.addListener('appStateFocusChange', listener);
+        return;
+    }
+    throw new Error('Trying to unsubscribe from unknown event: ' + type);
   }
 }
 
-if (__DEV__ && !RCTAppState) {
-  class MissingNativeAppStateShim extends MissingNativeEventEmitterShim {
-    constructor() {
-      super('RCTAppState', 'AppState');
-    }
-
-    get currentState(): ?string {
-      this.throwMissingNativeModule();
-    }
-
-    addEventListener(...args: Array<any>) {
-      this.throwMissingNativeModule();
-    }
-
-    removeEventListener(...args: Array<any>) {
-      this.throwMissingNativeModule();
-    }
-  }
-
-  // This module depends on the native `RCTAppState` module. If you don't
-  // include it, `AppState.isAvailable` will return `false`, and any method
-  // calls will throw. We reassign the class variable to keep the autodoc
-  // generator happy.
-  AppState = new MissingNativeAppStateShim();
-} else {
-  AppState = new AppState();
-}
-
-module.exports = AppState;
+module.exports = (new AppState(): AppState);

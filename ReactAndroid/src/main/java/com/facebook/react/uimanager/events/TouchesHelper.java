@@ -1,29 +1,29 @@
-/**
- * Copyright (c) 2015-present, Facebook, Inc.
- * All rights reserved.
+/*
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
 
 package com.facebook.react.uimanager.events;
 
 import android.view.MotionEvent;
-
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.WritableArray;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.uimanager.PixelUtil;
 
-/**
- * Class responsible for generating catalyst touch events based on android {@link MotionEvent}.
- */
-/*package*/ class TouchesHelper {
+/** Class responsible for generating catalyst touch events based on android {@link MotionEvent}. */
+public class TouchesHelper {
 
+  public static final String TARGET_SURFACE_KEY = "targetSurface";
+  public static final String TARGET_KEY = "target";
+  public static final String CHANGED_TOUCHES_KEY = "changedTouches";
+  public static final String TOUCHES_KEY = "touches";
+  public static final String TOP_TOUCH_END_KEY = "topTouchEnd";
+  public static final String TOP_TOUCH_CANCEL_KEY = "topTouchCancel";
   private static final String PAGE_X_KEY = "pageX";
   private static final String PAGE_Y_KEY = "pageY";
-  private static final String TARGET_KEY = "target";
   private static final String TIMESTAMP_KEY = "timestamp";
   private static final String POINTER_IDENTIFIER_KEY = "identifier";
 
@@ -35,7 +35,8 @@ import com.facebook.react.uimanager.PixelUtil;
    * given {@param event} instance. This method use {@param reactTarget} parameter to set as a
    * target view id associated with current gesture.
    */
-  private static WritableArray createsPointersArray(int reactTarget, TouchEvent event) {
+  private static WritableArray createsPointersArray(
+      int surfaceId, int reactTarget, TouchEvent event) {
     WritableArray touches = Arguments.createArray();
     MotionEvent motionEvent = event.getMotionEvent();
 
@@ -61,8 +62,9 @@ import com.facebook.react.uimanager.PixelUtil;
       float locationY = motionEvent.getY(index) - targetViewCoordinateY;
       touch.putDouble(LOCATION_X_KEY, PixelUtil.toDIPFromPixel(locationX));
       touch.putDouble(LOCATION_Y_KEY, PixelUtil.toDIPFromPixel(locationY));
+      touch.putInt(TARGET_SURFACE_KEY, surfaceId);
       touch.putInt(TARGET_KEY, reactTarget);
-      touch.putDouble(TIMESTAMP_KEY, event.getTimestampMs());
+      touch.putDouble(TIMESTAMP_KEY, event.getUnixTimestampMs());
       touch.putDouble(POINTER_IDENTIFIER_KEY, motionEvent.getPointerId(index));
       touches.pushMap(touch);
     }
@@ -71,8 +73,8 @@ import com.facebook.react.uimanager.PixelUtil;
   }
 
   /**
-   * Generate and send touch event to RCTEventEmitter JS module associated with the given
-   * {@param context}. Touch event can encode multiple concurrent touches (pointers).
+   * Generate and send touch event to RCTEventEmitter JS module associated with the given {@param
+   * context}. Touch event can encode multiple concurrent touches (pointers).
    *
    * @param rctEventEmitter Event emitter used to execute JS module call
    * @param type type of the touch event (see {@link TouchEventType})
@@ -82,10 +84,10 @@ import com.facebook.react.uimanager.PixelUtil;
   public static void sendTouchEvent(
       RCTEventEmitter rctEventEmitter,
       TouchEventType type,
+      int surfaceId,
       int reactTarget,
       TouchEvent touchEvent) {
-
-    WritableArray pointers = createsPointersArray(reactTarget, touchEvent);
+    WritableArray pointers = createsPointersArray(surfaceId, reactTarget, touchEvent);
     MotionEvent motionEvent = touchEvent.getMotionEvent();
 
     // For START and END events send only index of the pointer that is associated with that event
@@ -101,9 +103,6 @@ import com.facebook.react.uimanager.PixelUtil;
       throw new RuntimeException("Unknown touch type: " + type);
     }
 
-    rctEventEmitter.receiveTouches(
-        type.getJSEventName(),
-        pointers,
-        changedIndices);
+    rctEventEmitter.receiveTouches(TouchEventType.getJSEventName(type), pointers, changedIndices);
   }
 }

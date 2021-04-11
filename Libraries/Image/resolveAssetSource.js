@@ -1,30 +1,45 @@
 /**
- * Copyright (c) 2015-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
- * @providesModule resolveAssetSource
+ * @format
  * @flow
- *
- * Resolves an asset into a `source` for `Image`.
  */
+
+// Resolves an asset into a `source` for `Image`.
+
 'use strict';
 
-const AssetRegistry = require('AssetRegistry');
-const AssetSourceResolver = require('AssetSourceResolver');
-const NativeModules = require('NativeModules');
+const AssetRegistry = require('@react-native/assets/registry');
+const AssetSourceResolver = require('./AssetSourceResolver');
+const {pickScale} = require('./AssetUtils');
 
-import type { ResolvedAssetSource } from 'AssetSourceResolver';
+import type {ResolvedAssetSource} from './AssetSourceResolver';
 
-let _customSourceTransformer, _serverURL, _scriptURL, _embeddedBundleURL;
+let _customSourceTransformer, _serverURL, _scriptURL;
+
+let _sourceCodeScriptURL: ?string;
+function getSourceCodeScriptURL(): ?string {
+  if (_sourceCodeScriptURL) {
+    return _sourceCodeScriptURL;
+  }
+
+  let sourceCode =
+    global.nativeExtensions && global.nativeExtensions.SourceCode;
+  if (!sourceCode) {
+    sourceCode = require('../NativeModules/specs/NativeSourceCode').default;
+  }
+  _sourceCodeScriptURL = sourceCode.getConstants().scriptURL;
+  return _sourceCodeScriptURL;
+}
 
 function getDevServerURL(): ?string {
   if (_serverURL === undefined) {
-    var scriptURL = NativeModules.SourceCode.scriptURL;
-    var match = scriptURL && scriptURL.match(/^https?:\/\/.*?\//);
+    const sourceCodeScriptURL = getSourceCodeScriptURL();
+    const match =
+      sourceCodeScriptURL && sourceCodeScriptURL.match(/^https?:\/\/.*?\//);
     if (match) {
       // jsBundle was loaded from network
       _serverURL = match[0];
@@ -54,18 +69,9 @@ function _coerceLocalScriptURL(scriptURL: ?string): ?string {
 
 function getScriptURL(): ?string {
   if (_scriptURL === undefined) {
-    const scriptURL = NativeModules.SourceCode.scriptURL;
-    _scriptURL = _coerceLocalScriptURL(scriptURL);
+    _scriptURL = _coerceLocalScriptURL(getSourceCodeScriptURL());
   }
   return _scriptURL;
-}
-
-function getEmbeddedBundledURL(): ?string {
-  if (_embeddedBundleURL === undefined) {
-    const scriptURL = NativeModules.SourceCode.embeddedBundleURL;
-    _embeddedBundleURL = _coerceLocalScriptURL(scriptURL);
-  }
-  return _embeddedBundleURL;
 }
 
 function setCustomSourceTransformer(
@@ -83,7 +89,7 @@ function resolveAssetSource(source: any): ?ResolvedAssetSource {
     return source;
   }
 
-  var asset = AssetRegistry.getAssetByID(source);
+  const asset = AssetRegistry.getAssetByID(source);
   if (!asset) {
     return null;
   }
@@ -91,7 +97,6 @@ function resolveAssetSource(source: any): ?ResolvedAssetSource {
   const resolver = new AssetSourceResolver(
     getDevServerURL(),
     getScriptURL(),
-    getEmbeddedBundledURL(),
     asset,
   );
   if (_customSourceTransformer) {
@@ -101,5 +106,5 @@ function resolveAssetSource(source: any): ?ResolvedAssetSource {
 }
 
 module.exports = resolveAssetSource;
-module.exports.pickScale = AssetSourceResolver.pickScale;
+module.exports.pickScale = pickScale;
 module.exports.setCustomSourceTransformer = setCustomSourceTransformer;

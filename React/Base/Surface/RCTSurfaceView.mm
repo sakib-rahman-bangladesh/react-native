@@ -1,10 +1,8 @@
-/**
- * Copyright (c) 2015-present, Facebook, Inc.
- * All rights reserved.
+/*
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
 
 #import "RCTSurfaceView.h"
@@ -16,13 +14,12 @@
 
 @implementation RCTSurfaceView {
   RCTSurfaceRootView *_Nullable _rootView;
-  UIView *_Nullable _activityIndicatorView;
   RCTSurfaceStage _stage;
 }
 
-RCT_NOT_IMPLEMENTED(- (instancetype)init)
-RCT_NOT_IMPLEMENTED(- (instancetype)initWithFrame:(CGRect)frame)
-RCT_NOT_IMPLEMENTED(- (nullable instancetype)initWithCoder:(NSCoder *)coder)
+RCT_NOT_IMPLEMENTED(-(instancetype)init)
+RCT_NOT_IMPLEMENTED(-(instancetype)initWithFrame : (CGRect)frame)
+RCT_NOT_IMPLEMENTED(-(nullable instancetype)initWithCoder : (NSCoder *)coder)
 
 - (instancetype)initWithSurface:(RCTSurface *)surface
 {
@@ -36,7 +33,7 @@ RCT_NOT_IMPLEMENTED(- (nullable instancetype)initWithCoder:(NSCoder *)coder)
 
 #pragma mark - Internal Interface
 
-- (void)setRootView:(RCTSurfaceRootView *)rootView
+- (void)setRootView:(RCTSurfaceRootView *_Nullable)rootView
 {
   if (_rootView == rootView) {
     return;
@@ -44,28 +41,12 @@ RCT_NOT_IMPLEMENTED(- (nullable instancetype)initWithCoder:(NSCoder *)coder)
 
   [_rootView removeFromSuperview];
   _rootView = rootView;
-  [self updateStage];
+  [self _updateStage];
 }
 
 - (RCTSurfaceRootView *)rootView
 {
   return _rootView;
-}
-
-#pragma mark - activityIndicatorView
-
-- (void)setActivityIndicatorView:(UIView *)view
-{
-  [_activityIndicatorView removeFromSuperview];
-  _activityIndicatorView = view;
-  _activityIndicatorView.frame = self.bounds;
-  _activityIndicatorView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-  [self addSubview:_activityIndicatorView];
-}
-
-- (UIView *)activityIndicatorView
-{
-  return _activityIndicatorView;
 }
 
 #pragma mark - stage
@@ -78,7 +59,7 @@ RCT_NOT_IMPLEMENTED(- (nullable instancetype)initWithCoder:(NSCoder *)coder)
 
   _stage = stage;
 
-  [self updateStage];
+  [self _updateStage];
 }
 
 - (RCTSurfaceStage)stage
@@ -86,29 +67,16 @@ RCT_NOT_IMPLEMENTED(- (nullable instancetype)initWithCoder:(NSCoder *)coder)
   return _stage;
 }
 
-#pragma mark - Visibility
+#pragma mark - Private
 
-- (void)updateStage
+- (void)_updateStage
 {
-  BOOL displayRootView = _stage & RCTSurfaceStageSurfaceDidInitialLayout;
-  BOOL displayActivityIndicator = !displayRootView;
-
-  if (displayRootView) {
-    if (_rootView.superview != self) {
+  if (RCTSurfaceStageIsRunning(_stage)) {
+    if (_rootView && _rootView.superview != self) {
       [self addSubview:_rootView];
     }
-  }
-  else {
+  } else {
     [_rootView removeFromSuperview];
-  }
-
-  if (displayActivityIndicator) {
-    if (!_activityIndicatorView && self.activityIndicatorViewFactory != nil) {
-      self.activityIndicatorView = self.activityIndicatorViewFactory();
-    }
-  }
-  else {
-    [_activityIndicatorView removeFromSuperview];
   }
 }
 

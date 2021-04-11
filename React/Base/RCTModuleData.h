@@ -1,33 +1,40 @@
-/**
- * Copyright (c) 2015-present, Facebook, Inc.
- * All rights reserved.
+/*
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
 
 #import <Foundation/Foundation.h>
 
 #import <React/RCTInvalidating.h>
+#import "RCTDefines.h"
 
 @protocol RCTBridgeMethod;
 @protocol RCTBridgeModule;
 @class RCTBridge;
+@class RCTModuleRegistry;
+@class RCTViewRegistry;
 
-typedef id<RCTBridgeModule>(^RCTBridgeModuleProvider)(void);
+typedef id<RCTBridgeModule> (^RCTBridgeModuleProvider)(void);
 
 @interface RCTModuleData : NSObject <RCTInvalidating>
 
 - (instancetype)initWithModuleClass:(Class)moduleClass
-                             bridge:(RCTBridge *)bridge;
+                             bridge:(RCTBridge *)bridge
+                     moduleRegistry:(RCTModuleRegistry *)moduleRegistry
+            viewRegistry_DEPRECATED:(RCTViewRegistry *)viewRegistry_DEPRECATED;
 
 - (instancetype)initWithModuleClass:(Class)moduleClass
                      moduleProvider:(RCTBridgeModuleProvider)moduleProvider
-                             bridge:(RCTBridge *)bridge NS_DESIGNATED_INITIALIZER;
+                             bridge:(RCTBridge *)bridge
+                     moduleRegistry:(RCTModuleRegistry *)moduleRegistry
+            viewRegistry_DEPRECATED:(RCTViewRegistry *)viewRegistry_DEPRECATED NS_DESIGNATED_INITIALIZER;
 
 - (instancetype)initWithModuleInstance:(id<RCTBridgeModule>)instance
-                                bridge:(RCTBridge *)bridge NS_DESIGNATED_INITIALIZER;
+                                bridge:(RCTBridge *)bridge
+                        moduleRegistry:(RCTModuleRegistry *)moduleRegistry
+               viewRegistry_DEPRECATED:(RCTViewRegistry *)viewRegistry_DEPRECATED NS_DESIGNATED_INITIALIZER;
 
 /**
  * Calls `constantsToExport` on the module and stores the result. Note that
@@ -45,6 +52,12 @@ typedef id<RCTBridgeModule>(^RCTBridgeModuleProvider)(void);
  * time it is called and then memoize the results.
  */
 @property (nonatomic, copy, readonly) NSArray<id<RCTBridgeMethod>> *methods;
+
+/**
+ * Returns a map of the module methods. Note that this will gather the methods the first
+ * time it is called and then memoize the results.
+ */
+@property (nonatomic, copy, readonly) NSDictionary<NSString *, id<RCTBridgeMethod>> *methodsByName;
 
 /**
  * Returns the module's constants, if it exports any
@@ -71,19 +84,13 @@ typedef id<RCTBridgeModule>(^RCTBridgeModuleProvider)(void);
  * if it has not already been created. To check if the module instance exists
  * without causing it to be created, use `hasInstance` instead.
  */
-@property (nonatomic, strong, readonly) id<RCTBridgeModule> instance;
+@property (nonatomic, strong, readwrite) id<RCTBridgeModule> instance;
 
 /**
  * Returns the module method dispatch queue. Note that this will init both the
  * queue and the module itself if they have not already been created.
  */
 @property (nonatomic, strong, readonly) dispatch_queue_t methodQueue;
-
-/**
- * Returns the module config. Calls `gatherConstants` internally, so the same
- * usage caveats apply.
- */
-@property (nonatomic, copy, readonly) NSArray *config;
 
 /**
  * Whether the receiver has a valid `instance` which implements -batchDidComplete.
@@ -97,3 +104,6 @@ typedef id<RCTBridgeModule>(^RCTBridgeModuleProvider)(void);
 @property (nonatomic, assign, readonly) BOOL implementsPartialBatchDidFlush;
 
 @end
+
+RCT_EXTERN void RCTSetIsMainQueueExecutionOfConstantsToExportDisabled(BOOL val);
+RCT_EXTERN BOOL RCTIsMainQueueExecutionOfConstantsToExportDisabled(void);

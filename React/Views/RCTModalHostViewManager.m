@@ -1,10 +1,8 @@
-/**
- * Copyright (c) 2015-present, Facebook, Inc.
- * All rights reserved.
+/*
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
 
 #import "RCTModalHostViewManager.h"
@@ -18,14 +16,16 @@
 
 @implementation RCTConvert (RCTModalHostView)
 
-RCT_ENUM_CONVERTER(UIModalPresentationStyle, (@{
-  @"fullScreen": @(UIModalPresentationFullScreen),
-#if !TARGET_OS_TV
-  @"pageSheet": @(UIModalPresentationPageSheet),
-  @"formSheet": @(UIModalPresentationFormSheet),
-#endif
-  @"overFullScreen": @(UIModalPresentationOverFullScreen),
-}), UIModalPresentationFullScreen, integerValue)
+RCT_ENUM_CONVERTER(
+    UIModalPresentationStyle,
+    (@{
+      @"fullScreen" : @(UIModalPresentationFullScreen),
+      @"pageSheet" : @(UIModalPresentationPageSheet),
+      @"formSheet" : @(UIModalPresentationFormSheet),
+      @"overFullScreen" : @(UIModalPresentationOverFullScreen),
+    }),
+    UIModalPresentationFullScreen,
+    integerValue)
 
 @end
 
@@ -49,9 +49,8 @@ RCT_ENUM_CONVERTER(UIModalPresentationStyle, (@{
 
 @end
 
-@implementation RCTModalHostViewManager
-{
-  NSHashTable *_hostViews;
+@implementation RCTModalHostViewManager {
+  NSPointerArray *_hostViews;
 }
 
 RCT_EXPORT_MODULE()
@@ -61,13 +60,15 @@ RCT_EXPORT_MODULE()
   RCTModalHostView *view = [[RCTModalHostView alloc] initWithBridge:self.bridge];
   view.delegate = self;
   if (!_hostViews) {
-    _hostViews = [NSHashTable weakObjectsHashTable];
+    _hostViews = [NSPointerArray weakObjectsPointerArray];
   }
-  [_hostViews addObject:view];
+  [_hostViews addPointer:(__bridge void *)view];
   return view;
 }
 
-- (void)presentModalHostView:(RCTModalHostView *)modalHostView withViewController:(RCTModalHostViewController *)viewController animated:(BOOL)animated
+- (void)presentModalHostView:(RCTModalHostView *)modalHostView
+          withViewController:(RCTModalHostViewController *)viewController
+                    animated:(BOOL)animated
 {
   dispatch_block_t completionBlock = ^{
     if (modalHostView.onShow) {
@@ -77,11 +78,15 @@ RCT_EXPORT_MODULE()
   if (_presentationBlock) {
     _presentationBlock([modalHostView reactViewController], viewController, animated, completionBlock);
   } else {
-    [[modalHostView reactViewController] presentViewController:viewController animated:animated completion:completionBlock];
+    [[modalHostView reactViewController] presentViewController:viewController
+                                                      animated:animated
+                                                    completion:completionBlock];
   }
 }
 
-- (void)dismissModalHostView:(RCTModalHostView *)modalHostView withViewController:(RCTModalHostViewController *)viewController animated:(BOOL)animated
+- (void)dismissModalHostView:(RCTModalHostView *)modalHostView
+          withViewController:(RCTModalHostViewController *)viewController
+                    animated:(BOOL)animated
 {
   dispatch_block_t completionBlock = ^{
     if (modalHostView.identifier) {
@@ -91,10 +96,9 @@ RCT_EXPORT_MODULE()
   if (_dismissalBlock) {
     _dismissalBlock([modalHostView reactViewController], viewController, animated, completionBlock);
   } else {
-    [viewController dismissViewControllerAnimated:animated completion:completionBlock];
+    [viewController.presentingViewController dismissViewControllerAnimated:animated completion:completionBlock];
   }
 }
-
 
 - (RCTShadowView *)shadowView
 {
@@ -106,7 +110,7 @@ RCT_EXPORT_MODULE()
   for (RCTModalHostView *hostView in _hostViews) {
     [hostView invalidate];
   }
-  [_hostViews removeAllObjects];
+  _hostViews = nil;
 }
 
 RCT_EXPORT_VIEW_PROPERTY(animationType, NSString)
@@ -116,9 +120,5 @@ RCT_EXPORT_VIEW_PROPERTY(onShow, RCTDirectEventBlock)
 RCT_EXPORT_VIEW_PROPERTY(identifier, NSNumber)
 RCT_EXPORT_VIEW_PROPERTY(supportedOrientations, NSArray)
 RCT_EXPORT_VIEW_PROPERTY(onOrientationChange, RCTDirectEventBlock)
-
-#if TARGET_OS_TV
-RCT_EXPORT_VIEW_PROPERTY(onRequestClose, RCTDirectEventBlock)
-#endif
 
 @end

@@ -1,41 +1,30 @@
 /**
- * Copyright (c) 2015-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
- * @providesModule BackHandler
+ * @flow strict-local
+ * @format
  */
 
-'use strict';
+import NativeDeviceEventManager from '../../Libraries/NativeModules/specs/NativeDeviceEventManager';
+import RCTDeviceEventEmitter from '../EventEmitter/RCTDeviceEventEmitter';
 
-var DeviceEventManager = require('NativeModules').DeviceEventManager;
-var RCTDeviceEventEmitter = require('RCTDeviceEventEmitter');
+const DEVICE_BACK_EVENT = 'hardwareBackPress';
 
-var DEVICE_BACK_EVENT = 'hardwareBackPress';
+type BackPressEventName = 'backPress' | 'hardwareBackPress';
 
-type BackPressEventName = $Enum<{
-  backPress: string,
-}>;
-
-var _backPressSubscriptions = new Set();
+const _backPressSubscriptions = [];
 
 RCTDeviceEventEmitter.addListener(DEVICE_BACK_EVENT, function() {
-  var invokeDefault = true;
-  var subscriptions = Array.from(_backPressSubscriptions.values()).reverse();
-
-  for (var i = 0; i < subscriptions.length; ++i) {
-    if (subscriptions[i]()) {
-      invokeDefault = false;
-      break;
+  for (let i = _backPressSubscriptions.length - 1; i >= 0; i--) {
+    if (_backPressSubscriptions[i]()) {
+      return;
     }
   }
 
-  if (invokeDefault) {
-    BackHandler.exitApp();
-  }
+  BackHandler.exitApp();
 });
 
 /**
@@ -43,10 +32,6 @@ RCTDeviceEventEmitter.addListener(DEVICE_BACK_EVENT, function() {
  *
  * Android: Detect hardware back button presses, and programmatically invoke the default back button
  * functionality to exit the app if there are no listeners or if none of the listeners return true.
- *
- * tvOS: Detect presses of the menu button on the TV remote.  (Still to be implemented:
- * programmatically disable menu button handling
- * functionality to exit the app if there are no listeners or if none of the listeners return true.)
  *
  * iOS: Not applicable.
  *
@@ -68,25 +53,40 @@ RCTDeviceEventEmitter.addListener(DEVICE_BACK_EVENT, function() {
  * });
  * ```
  */
-var BackHandler = {
+type TBackHandler = {|
+  +exitApp: () => void,
+  +addEventListener: (
+    eventName: BackPressEventName,
+    handler: () => ?boolean,
+  ) => {remove: () => void, ...},
+  +removeEventListener: (
+    eventName: BackPressEventName,
+    handler: () => ?boolean,
+  ) => void,
+|};
+const BackHandler: TBackHandler = {
+  exitApp: function(): void {
+    if (!NativeDeviceEventManager) {
+      return;
+    }
 
-  exitApp: function() {
-    DeviceEventManager.invokeDefaultBackPressHandler();
+    NativeDeviceEventManager.invokeDefaultBackPressHandler();
   },
 
   /**
    * Adds an event handler. Supported events:
    *
-   * - `hardwareBackPress`: Fires when the Android hardware back button is pressed or when the
-   * tvOS menu button is pressed.
+   * - `hardwareBackPress`: Fires when the Android hardware back button is pressed.
    */
-  addEventListener: function (
+  addEventListener: function(
     eventName: BackPressEventName,
-    handler: Function
-  ): {remove: () => void} {
-    _backPressSubscriptions.add(handler);
+    handler: () => ?boolean,
+  ): {remove: () => void, ...} {
+    if (_backPressSubscriptions.indexOf(handler) === -1) {
+      _backPressSubscriptions.push(handler);
+    }
     return {
-      remove: () => BackHandler.removeEventListener(eventName, handler),
+      remove: (): void => BackHandler.removeEventListener(eventName, handler),
     };
   },
 
@@ -95,11 +95,15 @@ var BackHandler = {
    */
   removeEventListener: function(
     eventName: BackPressEventName,
-    handler: Function
+    handler: () => ?boolean,
   ): void {
-    _backPressSubscriptions.delete(handler);
+    if (_backPressSubscriptions.indexOf(handler) !== -1) {
+      _backPressSubscriptions.splice(
+        _backPressSubscriptions.indexOf(handler),
+        1,
+      );
+    }
   },
-
 };
 
 module.exports = BackHandler;

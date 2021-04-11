@@ -1,19 +1,19 @@
 /**
- * Copyright (c) 2015-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
+ * @format
  * @flow
- * @providesModule IntegrationTestsApp
  */
+
 'use strict';
 
-var React = require('react');
-var ReactNative = require('react-native');
-var {
+require('react-native/Libraries/Core/InitializeCore');
+const React = require('react');
+const ReactNative = require('react-native');
+const {
   AppRegistry,
   ScrollView,
   StyleSheet,
@@ -23,7 +23,7 @@ var {
 } = ReactNative;
 
 // Keep this list in sync with RNTesterIntegrationTests.m
-var TESTS = [
+const TESTS = [
   require('./IntegrationTestHarnessTest'),
   require('./TimersTest'),
   require('./AsyncStorageTest'),
@@ -33,25 +33,25 @@ var TESTS = [
   require('./ImageCachePolicyTest'),
   require('./ImageSnapshotTest'),
   require('./PromiseTest'),
-  require('./WebViewTest'),
   require('./SyncMethodTest'),
   require('./WebSocketTest'),
   require('./AccessibilityManagerTest'),
+  require('./GlobalEvalWithSourceUrlTest'),
 ];
 
 TESTS.forEach(
-  /* $FlowFixMe(>=0.54.0 site=react_native_fb,react_native_oss) This comment
-   * suppresses an error found when Flow v0.54 was deployed. To see the error
-   * delete this comment and run Flow. */
-  (test) => AppRegistry.registerComponent(test.displayName, () => test)
+  /* $FlowFixMe[incompatible-call] (>=0.54.0 site=react_native_fb,react_native_
+   * oss) This comment suppresses an error found when Flow v0.54 was deployed.
+   * To see the error delete this comment and run Flow. */
+  test => AppRegistry.registerComponent(test.displayName, () => test),
 );
 
 // Modules required for integration tests
-require('LoggingTestModule');
+require('./LoggingTestModule');
 
 type Test = any;
 
-class IntegrationTestsApp extends React.Component<{}, $FlowFixMeState> {
+class IntegrationTestsApp extends React.Component<{...}, $FlowFixMeState> {
   state = {
     test: (null: ?Test),
   };
@@ -60,9 +60,10 @@ class IntegrationTestsApp extends React.Component<{}, $FlowFixMeState> {
     if (this.state.test) {
       return (
         <ScrollView>
-          {/* $FlowFixMe(>=0.53.0 site=react_native_fb,react_native_oss) This
-            * comment suppresses an error when upgrading Flow's support for
-            * React. To see the error delete this comment and run Flow. */}
+          {/* $FlowFixMe[type-as-value] (>=0.53.0 site=react_native_fb,react_
+           * native_oss) This comment suppresses an error when upgrading
+           * Flow's support for React. To see the error delete this comment
+           * and run Flow. */}
           <this.state.test />
         </ScrollView>
       );
@@ -71,20 +72,22 @@ class IntegrationTestsApp extends React.Component<{}, $FlowFixMeState> {
       <View style={styles.container}>
         <Text style={styles.row}>
           Click on a test to run it in this shell for easier debugging and
-          development.  Run all tests in the testing environment with cmd+U in
+          development. Run all tests in the testing environment with cmd+U in
           Xcode.
         </Text>
         <View style={styles.separator} />
         <ScrollView>
-          {TESTS.map((test) => [
+          {TESTS.map(test => [
             <TouchableOpacity
               onPress={() => this.setState({test})}
+              /* $FlowFixMe[incompatible-type] (>=0.115.0 site=react_native_fb)
+               * This comment suppresses an error found when Flow v0.115 was
+               * deployed. To see the error, delete this comment and run Flow.
+               */
               style={styles.row}>
-              <Text style={styles.testName}>
-                {test.displayName}
-              </Text>
+              <Text style={styles.testName}>{test.displayName}</Text>
             </TouchableOpacity>,
-            <View style={styles.separator} />
+            <View style={styles.separator} />,
           ])}
         </ScrollView>
       </View>
@@ -92,7 +95,7 @@ class IntegrationTestsApp extends React.Component<{}, $FlowFixMeState> {
   }
 }
 
-var styles = StyleSheet.create({
+const styles = StyleSheet.create({
   container: {
     backgroundColor: 'white',
     marginTop: 40,

@@ -1,13 +1,11 @@
-/**
- * Copyright (c) 2015-present, Facebook, Inc.
- * All rights reserved.
+/*
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
 
-#import "RCTImageBlurUtils.h"
+#import <React/RCTImageBlurUtils.h>
 
 UIImage *RCTBlurredImageWithRadius(UIImage *inputImage, CGFloat radius)
 {
@@ -36,7 +34,14 @@ UIImage *RCTBlurredImageWithRadius(UIImage *inputImage, CGFloat radius)
   buffer1.rowBytes = buffer2.rowBytes = CGImageGetBytesPerRow(imageRef);
   size_t bytes = buffer1.rowBytes * buffer1.height;
   buffer1.data = malloc(bytes);
+  if (!buffer1.data) {
+    return inputImage;
+  }
   buffer2.data = malloc(bytes);
+  if (!buffer2.data) {
+    free(buffer1.data);
+    return inputImage;
+  }
 
   // A description of how to compute the box kernel width from the Gaussian
   // radius (aka standard deviation) appears in the SVG spec:
@@ -45,8 +50,19 @@ UIImage *RCTBlurredImageWithRadius(UIImage *inputImage, CGFloat radius)
   boxSize |= 1; // Ensure boxSize is odd
 
   //create temp buffer
-  void *tempBuffer = malloc((size_t)vImageBoxConvolve_ARGB8888(&buffer1, &buffer2, NULL, 0, 0, boxSize, boxSize,
-                                                               NULL, kvImageEdgeExtend + kvImageGetTempBufferSize));
+  vImage_Error tempBufferSize = vImageBoxConvolve_ARGB8888(&buffer1, &buffer2, NULL, 0, 0, boxSize, boxSize,
+                                                             NULL, kvImageGetTempBufferSize | kvImageEdgeExtend);
+  if (tempBufferSize < 0) {
+    free(buffer1.data);
+    free(buffer2.data);
+    return inputImage;
+  }
+  void *tempBuffer = malloc(tempBufferSize);
+  if (!tempBuffer) {
+    free(buffer1.data);
+    free(buffer2.data);
+    return inputImage;
+  }
 
   //copy image data
   CFDataRef dataSource = CGDataProviderCopyData(CGImageGetDataProvider(imageRef));

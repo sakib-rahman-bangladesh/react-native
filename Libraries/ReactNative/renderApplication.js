@@ -1,61 +1,72 @@
 /**
- * Copyright (c) 2015-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
- * @providesModule renderApplication
  * @format
  * @flow
  */
 
-'use strict';
+const AppContainer = require('./AppContainer');
+import GlobalPerformanceLogger from '../Utilities/GlobalPerformanceLogger';
+import type {IPerformanceLogger} from '../Utilities/createPerformanceLogger';
+import PerformanceLoggerContext from '../Utilities/PerformanceLoggerContext';
+const React = require('react');
 
-const AppContainer = require('AppContainer');
-const React = require('React');
-const ReactNative = require('ReactNative');
-
-const invariant = require('fbjs/lib/invariant');
+const invariant = require('invariant');
 
 // require BackHandler so it sets the default handler that exits the app if no listeners respond
-require('BackHandler');
+require('../Utilities/BackHandler');
 
 function renderApplication<Props: Object>(
   RootComponent: React.ComponentType<Props>,
   initialProps: Props,
   rootTag: any,
   WrapperComponent?: ?React.ComponentType<*>,
+  fabric?: boolean,
+  showArchitectureIndicator?: boolean,
+  scopedPerformanceLogger?: IPerformanceLogger,
+  isLogBox?: boolean,
+  debugName?: string,
 ) {
   invariant(rootTag, 'Expect to have a valid rootTag, instead got ', rootTag);
 
+  const performanceLogger = scopedPerformanceLogger ?? GlobalPerformanceLogger;
+
   let renderable = (
-    <AppContainer rootTag={rootTag} WrapperComponent={WrapperComponent}>
-      <RootComponent {...initialProps} rootTag={rootTag} />
-    </AppContainer>
+    <PerformanceLoggerContext.Provider value={performanceLogger}>
+      <AppContainer
+        rootTag={rootTag}
+        fabric={fabric}
+        showArchitectureIndicator={showArchitectureIndicator}
+        WrapperComponent={WrapperComponent}
+        initialProps={initialProps ?? Object.freeze({})}
+        internal_excludeLogBox={isLogBox}>
+        <RootComponent {...initialProps} rootTag={rootTag} />
+      </AppContainer>
+    </PerformanceLoggerContext.Provider>
   );
 
-  // If the root component is async, the user probably wants the initial render
-  // to be async also. To do this, wrap AppContainer with an async marker.
-  // For more info see https://fb.me/is-component-async
-  if (
-    RootComponent.prototype != null &&
-    RootComponent.prototype.unstable_isAsyncReactComponent === true
-  ) {
-    // $FlowFixMe This is not yet part of the official public API
-    class AppContainerAsyncWrapper extends React.unstable_AsyncComponent {
-      render() {
-        return this.props.children;
-      }
-    }
-
+  if (__DEV__ && debugName) {
+    const RootComponentWithMeaningfulName = ({children}) => children;
+    RootComponentWithMeaningfulName.displayName = `${debugName}(RootComponent)`;
     renderable = (
-      <AppContainerAsyncWrapper>{renderable}</AppContainerAsyncWrapper>
+      <RootComponentWithMeaningfulName>
+        {renderable}
+      </RootComponentWithMeaningfulName>
     );
   }
 
-  ReactNative.render(renderable, rootTag);
+  performanceLogger.startTimespan('renderApplication_React_render');
+  performanceLogger.setExtra('usedReactFabric', fabric ? '1' : '0');
+
+  if (fabric) {
+    require('../Renderer/shims/ReactFabric').render(renderable, rootTag);
+  } else {
+    require('../Renderer/shims/ReactNative').render(renderable, rootTag);
+  }
+  performanceLogger.stopTimespan('renderApplication_React_render');
 }
 
 module.exports = renderApplication;
