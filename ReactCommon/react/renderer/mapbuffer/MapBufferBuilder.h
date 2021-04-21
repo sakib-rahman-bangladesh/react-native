@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <react/debug/react_native_assert.h>
 #include <react/renderer/mapbuffer/MapBuffer.h>
 #include <react/renderer/mapbuffer/primitives.h>
 #include <stdlib.h>
@@ -39,26 +40,26 @@ class MapBufferBuilder {
   // - Value is stored into 8 bytes. The 8 bytes of the value will contain the
   // actual value for the key or a pointer to the actual value (based on the
   // type)
-  uint8_t *keyValues_;
+  uint8_t *keyValues_ = nullptr;
 
   // Amount of bytes allocated on _keyValues
-  uint16_t keyValuesSize_;
+  uint16_t keyValuesSize_ = 0;
 
   // Relative offset on the _keyValues array.
   // This represents the first byte that can be written in _keyValues array
-  int keyValuesOffset_;
+  int keyValuesOffset_ = 0;
 
   // This array contains data for dynamic values in the MapBuffer.
   // A dynamic value is a String or another MapBuffer.
-  uint8_t *dynamicDataValues_;
+  uint8_t *dynamicDataValues_ = nullptr;
 
   // Amount of bytes allocated on _dynamicDataValues
-  uint16_t dynamicDataSize_;
+  uint16_t dynamicDataSize_ = 0;
 
   // Relative offset on the _dynamicDataValues array.
   // This represents the first byte that can be written in _dynamicDataValues
   // array
-  int dynamicDataOffset_;
+  int dynamicDataOffset_ = 0;
 
   // Minimmum key to store in the MapBuffer (this is used to guarantee
   // consistency)
@@ -85,7 +86,7 @@ class MapBufferBuilder {
 
   void putMapBuffer(Key key, MapBuffer &map);
 
-  // TODO This should return MapBuffer!
+  // TODO T83483191: This should return MapBuffer!
   MapBuffer build();
 };
 

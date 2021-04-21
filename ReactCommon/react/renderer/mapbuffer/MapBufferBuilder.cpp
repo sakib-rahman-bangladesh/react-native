@@ -12,6 +12,7 @@ using namespace facebook::react;
 namespace facebook {
 namespace react {
 
+// TODO T83483191: Add asserts to check overflowing on additions
 MapBufferBuilder::MapBufferBuilder()
     : MapBufferBuilder::MapBufferBuilder(INITIAL_KEY_VALUE_SIZE) {}
 
@@ -33,12 +34,9 @@ MapBufferBuilder::MapBufferBuilder(uint16_t initialSize) {
 
 void MapBufferBuilder::ensureKeyValueSpace() {
   int oldKeyValuesSize = keyValuesSize_;
-  if (keyValuesSize_ >= std::numeric_limits<uint16_t>::max() / 2) {
-    LOG(ERROR)
-        << "Error: trying to assign a value beyond the capacity of uint16_t"
-        << static_cast<uint32_t>(keyValuesSize_) * 2;
-    abort();
-  }
+  react_native_assert(
+      (keyValuesSize_ < std::numeric_limits<uint16_t>::max() / 2) &&
+      "Error trying to assign a value beyond the capacity of uint16_t: ");
   keyValuesSize_ *= 2;
   uint8_t *newKeyValues = new Byte[keyValuesSize_];
   uint8_t *oldKeyValues = keyValues_;
@@ -57,8 +55,8 @@ void MapBufferBuilder::storeKeyValue(Key key, uint8_t *value, int valueSize) {
                << valueSize;
     abort();
   }
-  // TODO: header.count points to the next index
-  // TODO: add test to verify storage of sparse keys
+  // TODO T83483191: header.count points to the next index
+  // TODO T83483191: add test to verify storage of sparse keys
   int keyOffset = getKeyOffset(_header.count);
   int valueOffset = keyOffset + KEY_SIZE;
 
@@ -126,8 +124,8 @@ void MapBufferBuilder::putString(Key key, std::string value) {
 
   // format [lenght of string (int)] + [Array of Characters in the string]
   int sizeOfLength = INT_SIZE;
-  // TODO : review if map.getBufferSize() should be an int or long instead of an
-  // int16 (because strings can be longer than int16);
+  // TODO T83483191: review if map.getBufferSize() should be an int or long
+  // instead of an int16 (because strings can be longer than int16);
 
   int sizeOfDynamicData = sizeOfLength + strLength;
   ensureDynamicDataSpace(sizeOfDynamicData);
@@ -163,6 +161,10 @@ void MapBufferBuilder::putMapBuffer(Key key, MapBuffer &map) {
 }
 
 MapBuffer MapBufferBuilder::build() {
+  react_native_assert(
+      (keyValues_ != nullptr) &&
+      "Error when building mapbuffer with invalid datastructures.");
+
   // Create buffer: [header] + [key, values] + [dynamic data]
   int bufferSize = keyValuesOffset_ + dynamicDataOffset_;
 
@@ -179,14 +181,15 @@ MapBuffer MapBufferBuilder::build() {
     memcpy(buffer + keyValuesOffset_, dynamicDataValues_, dynamicDataOffset_);
   }
 
-  // TODO: should we use std::move here?
+  // TODO T83483191: should we use std::move here?
   auto map = MapBuffer(buffer, bufferSize);
 
-  // TODO: we should invalidate the class once the build() method is
+  // TODO T83483191: we should invalidate the class once the build() method is
   // called.
 
-  // Reset internal data
-  delete[] keyValues_;
+  if (keyValues_ != nullptr) {
+    delete[] keyValues_;
+  }
   keyValues_ = nullptr;
   keyValuesSize_ = 0;
   keyValuesOffset_ = 0;
@@ -197,6 +200,7 @@ MapBuffer MapBufferBuilder::build() {
   }
   dynamicDataSize_ = 0;
   dynamicDataOffset_ = 0;
+  _header = {ALIGNMENT, 0, 0};
 
   return map;
 }
@@ -208,6 +212,12 @@ MapBufferBuilder::~MapBufferBuilder() {
   if (dynamicDataValues_ != nullptr) {
     delete[] dynamicDataValues_;
   }
+  _header = {ALIGNMENT, 0, 0};
+  keyValuesSize_ = 0;
+  keyValuesOffset_ = 0;
+  dynamicDataSize_ = 0;
+  dynamicDataOffset_ = 0;
+  minKeyToStore_ = 0;
 }
 
 } // namespace react
