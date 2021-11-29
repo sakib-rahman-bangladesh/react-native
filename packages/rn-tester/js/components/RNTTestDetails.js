@@ -5,21 +5,19 @@
  * LICENSE file in the root directory of this source tree.
  *
  * @format
- * @flow
+ * @flow strict-local
  */
 
 import * as React from 'react';
-import {View, Text, StyleSheet, Button} from 'react-native';
+import {View, Text, StyleSheet, Button, Platform} from 'react-native';
 import {type RNTesterTheme} from './RNTesterTheme';
 
 function RNTTestDetails({
-  test,
   description,
   expect,
   title,
   theme,
 }: {
-  test?: string,
   description?: string,
   expect?: string,
   title: string,
@@ -27,31 +25,30 @@ function RNTTestDetails({
 }): React.Node {
   const [collapsed, setCollapsed] = React.useState(false);
 
-  const content =
-    test != null ? (
-      <>
+  const content = (
+    <>
+      {description == null ? null : (
         <View style={styles.section}>
-          <Text style={styles.heading}>How to Test</Text>
-          <Text style={styles.paragraph}>{test}</Text>
+          <Text style={styles.heading}>Description</Text>
+          <Text style={styles.paragraph}>{description}</Text>
         </View>
-        {expect != null && (
-          <View style={styles.section}>
-            <Text style={styles.heading}>Expectation</Text>
-            <Text style={styles.paragraph}>{expect}</Text>
-          </View>
-        )}
-      </>
-    ) : description != null ? (
-      <View style={styles.section}>
-        <Text style={styles.heading}>Description</Text>
-        <Text style={styles.paragraph}>{description}</Text>
-      </View>
-    ) : null;
-
+      )}
+      {expect == null ? null : (
+        <View style={styles.section}>
+          <Text style={styles.heading}>Expectation</Text>
+          <Text style={styles.paragraph}>{expect}</Text>
+        </View>
+      )}
+    </>
+  );
   return (
     <View
       style={StyleSheet.compose(styles.container, {
         borderColor: theme.SeparatorColor,
+        backgroundColor:
+          Platform.OS === 'ios'
+            ? theme.SystemBackgroundColor
+            : theme.BackgroundColor,
       })}>
       <View style={styles.titleRow}>
         <Text

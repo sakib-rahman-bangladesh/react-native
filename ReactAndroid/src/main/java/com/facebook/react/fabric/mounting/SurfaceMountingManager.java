@@ -19,8 +19,7 @@ import androidx.annotation.UiThread;
 import com.facebook.common.logging.FLog;
 import com.facebook.infer.annotation.Assertions;
 import com.facebook.infer.annotation.ThreadConfined;
-import com.facebook.react.bridge.ReactNoCrashSoftException;
-import com.facebook.react.bridge.ReactSoftException;
+import com.facebook.react.bridge.ReactSoftExceptionLogger;
 import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.RetryableMountingLayerException;
@@ -76,13 +75,15 @@ public class SurfaceMountingManager {
       @NonNull JSResponderHandler jsResponderHandler,
       @NonNull ViewManagerRegistry viewManagerRegistry,
       @NonNull RootViewManager rootViewManager,
-      @NonNull MountItemExecutor mountItemExecutor) {
+      @NonNull MountItemExecutor mountItemExecutor,
+      @NonNull ThemedReactContext reactContext) {
     mSurfaceId = surfaceId;
 
     mJSResponderHandler = jsResponderHandler;
     mViewManagerRegistry = viewManagerRegistry;
     mRootViewManager = rootViewManager;
     mMountItemExecutor = mountItemExecutor;
+    mThemedReactContext = reactContext;
   }
 
   public boolean isStopped() {
@@ -174,7 +175,7 @@ public class SurfaceMountingManager {
             }
 
             if (rootView.getId() == mSurfaceId) {
-              ReactSoftException.logSoftException(
+              ReactSoftExceptionLogger.logSoftException(
                   TAG,
                   new IllegalViewOperationException(
                       "Race condition in addRootView detected. Trying to set an id of ["
@@ -322,7 +323,7 @@ public class SurfaceMountingManager {
     if (viewParent != null) {
       int actualParentId =
           viewParent instanceof ViewGroup ? ((ViewGroup) viewParent).getId() : View.NO_ID;
-      ReactSoftException.logSoftException(
+      ReactSoftExceptionLogger.logSoftException(
           TAG,
           new IllegalStateException(
               "addViewAt: cannot insert view ["
@@ -380,7 +381,7 @@ public class SurfaceMountingManager {
 
     // TODO: throw exception here?
     if (parentViewState == null) {
-      ReactSoftException.logSoftException(
+      ReactSoftExceptionLogger.logSoftException(
           MountingManager.TAG,
           new IllegalStateException(
               "Unable to find viewState for tag: [" + parentTag + "] for removeViewAt"));
@@ -457,7 +458,7 @@ public class SurfaceMountingManager {
       // If we can fix the bug there, or remove the need for LayoutAnimation index adjustment
       // entirely, we can just throw this exception without regression user experience.
       logViewHierarchy(parentView, true);
-      ReactSoftException.logSoftException(
+      ReactSoftExceptionLogger.logSoftException(
           TAG,
           new IllegalStateException(
               "Tried to remove view ["
@@ -541,16 +542,12 @@ public class SurfaceMountingManager {
     }
     // We treat this as a perf problem and not a logical error. View Preallocation or unexpected
     // changes to Differ or C++ Binding could cause some redundant Create instructions.
-    // This is a NoCrash soft exception because we know there are cases where preallocation happens
-    // and a node is recreated: if a node is preallocated and then committed with revision 2+,
-    // an extra CREATE instruction will be generated.
+    // There are cases where preallocation happens and a node is recreated: if a node is
+    // preallocated and then committed with revision 2+, an extra CREATE instruction will be
+    // generated.
     // This represents a perf issue only, not a correctness issue. In the future we need to
     // refactor View preallocation to correct the currently incorrect assumptions.
     if (getNullableViewState(reactTag) != null) {
-      ReactSoftException.logSoftException(
-          TAG,
-          new ReactNoCrashSoftException(
-              "Cannot CREATE view with tag [" + reactTag + "], already exists."));
       return;
     }
 
@@ -879,7 +876,7 @@ public class SurfaceMountingManager {
     ViewState viewState = getNullableViewState(reactTag);
 
     if (viewState == null) {
-      ReactSoftException.logSoftException(
+      ReactSoftExceptionLogger.logSoftException(
           MountingManager.TAG,
           new IllegalStateException(
               "Unable to find viewState for tag: " + reactTag + " for deleteView"));
@@ -910,10 +907,6 @@ public class SurfaceMountingManager {
     // We treat this as a perf problem and not a logical error. View Preallocation or unexpected
     // changes to Differ or C++ Binding could cause some redundant Create instructions.
     if (getNullableViewState(reactTag) != null) {
-      ReactSoftException.logSoftException(
-          TAG,
-          new IllegalStateException(
-              "Cannot Preallocate view with tag [" + reactTag + "], already exists."));
       return;
     }
 
@@ -928,11 +921,21 @@ public class SurfaceMountingManager {
     return viewState == null ? null : viewState.mEventEmitter;
   }
 
-  @NonNull
-  private ViewState getViewState(int tag) {
+  @UiThread
+  public View getView(int reactTag) {
+    ViewState state = getNullableViewState(reactTag);
+    View view = state == null ? null : state.mView;
+    if (view == null) {
+      throw new IllegalViewOperationException(
+          "Trying to resolve view with tag " + reactTag + " which doesn't exist");
+    }
+    return view;
+  }
+
+  private @NonNull ViewState getViewState(int tag) {
     ViewState viewState = mTagToViewState.get(tag);
     if (viewState == null) {
-      throw new RetryableMountingLayerException("Unable to find viewState view for tag " + tag);
+      throw new RetryableMountingLayerException("Unable to find viewState for tag " + tag);
     }
     return viewState;
   }
@@ -951,6 +954,25 @@ public class SurfaceMountingManager {
       throw new IllegalStateException("Unable to find ViewManager for view: " + viewState);
     }
     return (ViewGroupManager<ViewGroup>) viewState.mViewManager;
+  }
+
+  public void printSurfaceState() {
+    FLog.e(TAG, "Views created for surface {%d}:", getSurfaceId());
+    for (ViewState viewState : mTagToViewState.values()) {
+      String viewManagerName =
+          viewState.mViewManager != null ? viewState.mViewManager.getName() : null;
+      @Nullable View view = viewState.mView;
+      @Nullable View parent = view != null ? (View) view.getParent() : null;
+      @Nullable Integer parentTag = parent != null ? parent.getId() : null;
+
+      FLog.e(
+          TAG,
+          "<%s id=%d parentTag=%s isRoot=%b />",
+          viewManagerName,
+          viewState.mReactTag,
+          parentTag,
+          viewState.mIsRoot);
+    }
   }
 
   /**

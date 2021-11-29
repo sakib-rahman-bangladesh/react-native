@@ -22,6 +22,7 @@ import com.facebook.react.bridge.ReactMarker;
 import com.facebook.react.bridge.ReactMarkerConstants;
 import com.facebook.react.bridge.UiThreadUtil;
 import com.facebook.react.common.ReactConstants;
+import com.facebook.react.common.SurfaceDelegateFactory;
 import com.facebook.react.common.futures.SimpleSettableFuture;
 import com.facebook.react.devsupport.interfaces.DevBundleDownloadListener;
 import com.facebook.react.devsupport.interfaces.DevOptionHandler;
@@ -57,7 +58,7 @@ import java.util.concurrent.TimeoutException;
  *
  * IMPORTANT: In order for developer support to work correctly it is required that the
  * manifest of your application contain the following entries:
- * {@code <activity android:name="com.facebook.react.devsupport.DevSettingsActivity"/>}
+ * {@code <activity android:name="com.facebook.react.devsupport.DevSettingsActivity" android:exported="false"/>}
  * {@code <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>}
  */
 public final class BridgeDevSupportManager extends DevSupportManagerBase {
@@ -71,7 +72,8 @@ public final class BridgeDevSupportManager extends DevSupportManagerBase {
       @Nullable RedBoxHandler redBoxHandler,
       @Nullable DevBundleDownloadListener devBundleDownloadListener,
       int minNumShakes,
-      @Nullable Map<String, RequestHandler> customPackagerCommandHandlers) {
+      @Nullable Map<String, RequestHandler> customPackagerCommandHandlers,
+      @Nullable SurfaceDelegateFactory surfaceDelegateFactory) {
     super(
         applicationContext,
         reactInstanceManagerHelper,
@@ -80,7 +82,8 @@ public final class BridgeDevSupportManager extends DevSupportManagerBase {
         redBoxHandler,
         devBundleDownloadListener,
         minNumShakes,
-        customPackagerCommandHandlers);
+        customPackagerCommandHandlers,
+        surfaceDelegateFactory);
 
     if (getDevSettings().isStartSamplingProfilerOnInit()) {
       // Only start the profiler. If its already running, there is an error

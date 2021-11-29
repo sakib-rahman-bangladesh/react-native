@@ -10,6 +10,8 @@
 
 'use strict';
 
+import type {PressEvent} from 'react-native/Libraries/Types/CoreEventTypes';
+
 const React = require('react');
 const {
   AccessibilityInfo,
@@ -942,6 +944,19 @@ class EnabledExamples extends React.Component<{}> {
           </>
         ) : null}
 
+        {Platform.OS === 'android' ? (
+          <RNTesterBlock
+            title="isAccessibilityServiceEnabled()"
+            description={
+              'Event emitted whenever an accessibility service is enabled. This includes TalkBack as well as assistive technologies such as "Select to Speak".'
+            }>
+            <EnabledExample
+              test="any accessibility service"
+              eventListener="accessibilityServiceChanged"
+            />
+          </RNTesterBlock>
+        ) : null}
+
         <RNTesterBlock title="isReduceMotionEnabled()">
           <EnabledExample
             test="reduce motion"
@@ -969,7 +984,8 @@ class EnabledExample extends React.Component<
       | 'invertColorsChanged'
       | 'reduceTransparencyChanged'
       | 'reduceMotionChanged'
-      | 'screenReaderChanged',
+      | 'screenReaderChanged'
+      | 'accessibilityServiceChanged',
     test: string,
   },
   {
@@ -991,6 +1007,10 @@ class EnabledExample extends React.Component<
         return AccessibilityInfo.isReduceMotionEnabled().then(state => {
           this.setState({isEnabled: state});
         });
+      case 'accessibilityServiceChanged':
+        return AccessibilityInfo.isAccessibilityServiceEnabled().then(state => {
+          this.setState({isEnabled: state});
+        });
       default:
         return null;
     }
@@ -1000,7 +1020,7 @@ class EnabledExample extends React.Component<
     this._subscription?.remove();
   }
 
-  _handleToggled = isEnabled => {
+  _handleToggled = (isEnabled: void | PressEvent | boolean) => {
     if (!this.state.isEnabled) {
       this.setState({isEnabled: true});
     } else {
@@ -1022,6 +1042,72 @@ class EnabledExample extends React.Component<
       </View>
     );
   }
+}
+
+class DisplayOptionsStatusExample extends React.Component<{}> {
+  render(): React.Node {
+    const isAndroid = Platform.OS === 'android';
+    return (
+      <View>
+        <DisplayOptionStatusExample
+          optionName={'Reduce Motion'}
+          optionChecker={AccessibilityInfo.isReduceMotionEnabled}
+          notification={'reduceMotionChanged'}
+        />
+        <DisplayOptionStatusExample
+          optionName={'Screen Reader'}
+          optionChecker={AccessibilityInfo.isScreenReaderEnabled}
+          notification={'reduceMotionChanged'}
+        />
+        {isAndroid ? null : (
+          <>
+            <DisplayOptionStatusExample
+              optionName={'Bold Text'}
+              optionChecker={AccessibilityInfo.isBoldTextEnabled}
+              notification={'boldTextChanged'}
+            />
+            <DisplayOptionStatusExample
+              optionName={'Grayscale'}
+              optionChecker={AccessibilityInfo.isGrayscaleEnabled}
+              notification={'grayscaleChanged'}
+            />
+            <DisplayOptionStatusExample
+              optionName={'Invert Colors'}
+              optionChecker={AccessibilityInfo.isInvertColorsEnabled}
+              notification={'invertColorsChanged'}
+            />
+            <DisplayOptionStatusExample
+              optionName={'Reduce Transparency'}
+              optionChecker={AccessibilityInfo.isReduceTransparencyEnabled}
+              notification={'reduceTransparencyChanged'}
+            />
+          </>
+        )}
+      </View>
+    );
+  }
+}
+
+function DisplayOptionStatusExample({optionName, optionChecker, notification}) {
+  const [statusEnabled, setStatusEnabled] = React.useState(false);
+  React.useEffect(() => {
+    AccessibilityInfo.addEventListener(notification, setStatusEnabled);
+    optionChecker().then(isEnabled => {
+      setStatusEnabled(isEnabled);
+    });
+    return function cleanup() {
+      AccessibilityInfo.removeEventListener(notification, setStatusEnabled);
+    };
+  }, [optionChecker, notification]);
+  return (
+    <View>
+      <Text>
+        {optionName}
+        {' is '}
+        {statusEnabled ? 'enabled' : 'disabled'}.
+      </Text>
+    </View>
+  );
 }
 
 exports.title = 'Accessibility';
@@ -1056,6 +1142,12 @@ exports.examples = [
     title: 'Fake Slider Example',
     render(): React.Element<typeof FakeSliderExample> {
       return <FakeSliderExample />;
+    },
+  },
+  {
+    title: 'Check if the display options are enabled',
+    render(): React.Element<typeof DisplayOptionsStatusExample> {
+      return <DisplayOptionsStatusExample />;
     },
   },
   {
